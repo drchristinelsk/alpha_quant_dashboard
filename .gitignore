@@ -1,0 +1,22 @@
+# .gitignore
+# Ignore Python environment and caches
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Ignore data files
+data/*.csv
+*.log
+
+# VSCode settings
+.vscode/
+
+# Node
+node_modules/
