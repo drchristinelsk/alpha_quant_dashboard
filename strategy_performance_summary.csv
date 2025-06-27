@@ -1,0 +1,2 @@
+Strategy,Sharpe Ratio,Sortino Ratio,Win Rate (%),Wins,Losses,Closed P/L,Avg Win,Avg Loss,Profit Factor,Max Drawdown,Avg Duration (s)
+aapl_strategy,,,100.0,1,0,21.78,21.78,0.0,inf,0.0,0.0
