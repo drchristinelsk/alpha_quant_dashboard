@@ -12,7 +12,6 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Ignore data files
-data/*.csv
 *.log
 
 # VSCode settings
