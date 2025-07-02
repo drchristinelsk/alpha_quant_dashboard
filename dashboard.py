@@ -1,9 +1,3 @@
-import streamlit as st
-import pandas as pd
-import os
-import importlib.util
-from utils.performance_metrics import calculate_metrics
-
 # dashboard.py — at the very top
 import asyncio
 import threading
@@ -13,6 +7,12 @@ try:
 except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+
+import streamlit as st
+import pandas as pd
+import os
+import importlib.util
+from utils.performance_metrics import calculate_metrics
 
 # Configuration
 STRATEGY_FOLDER = "strategies"
@@ -38,8 +38,8 @@ def load_strategies():
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             
-            if not asyncio.get_event_loop_policy().get_event_loop().is_running():
-                asyncio.set_event_loop(asyncio.new_event_loop())
+            # if not asyncio.get_event_loop_policy().get_event_loop().is_running():
+                # asyncio.set_event_loop(asyncio.new_event_loop())
 
             if hasattr(module, "Strategy"):
                 strategies[module_name] = module.Strategy()
@@ -76,8 +76,17 @@ for name, strategy in strategies.items():
     df = strategy.run()
     strategy_dataframes[name] = df
 
-    if df.empty or 'pnl' not in df.columns:
-        continue
+    # if df.empty or 'pnl' not in df.columns:
+    #     continue
+
+    # if df.empty:
+    #     st.warning(f"⚠️ No data for {name}")
+    # elif "pnl" not in df.columns:
+    #     st.warning(f"⚠️ 'pnl' column missing in {name}")
+    # else:
+    #     st.success(f"✅ Loaded {len(df)} trades for {name}")
+    #     st.text(df.dtypes)
+    #     st.write(df.head())
 
     metrics = calculate_metrics(df)
     summary_data.append({
@@ -120,7 +129,8 @@ if summary_data:
     for name, df in strategy_dataframes.items():
         # if enabled:
         strategy = strategies[name]
-        df = strategy.run()
+        # df = strategy.run()
+        df = strategy_dataframes[name]
         with st.expander(f"\U0001F4C2 Detailed View: {name}"):
             if df.empty or 'pnl' not in df.columns:
                 st.info("ℹ️ No trades generated for this strategy yet.")
@@ -128,8 +138,10 @@ if summary_data:
                 st.write("### Trade Log")
                 st.dataframe(df, use_container_width=True)
 
-                # df['cumulative_pnl'] = df['pnl'].cumsum()
-                # st.line_chart(df.set_index("timestamp")["cumulative_pnl"])
+                if 'timestamp' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+                    df = df.dropna(subset=["timestamp"])
+
                 if 'pnl' in df.columns and not df.empty:
                     st.write("### Equity Curve")
                     df['cumulative_pnl'] = df['pnl'].cumsum()
@@ -145,16 +157,10 @@ if summary_data:
                     st.write("### Trade Duration Distribution")
                     st.bar_chart(df['duration'])
 
-                # df['drawdown'] = df['cumulative_pnl'].cummax() - df['cumulative_pnl']
-                # st.area_chart(df.set_index("timestamp")["drawdown"])
-
-                if 'duration' in df.columns:
-                    st.write("### Trade Duration Distribution")
-                    st.bar_chart(df['duration'])
-
                 st.write("### Additional Metrics")
                 metrics = calculate_metrics(df)
                 st.json(metrics)
 
 else:
     st.info("No strategies selected or no trades generated yet.")
+

@@ -1,16 +1,36 @@
-# strategies/spx_bull_put_strategy.py
-
 import pandas as pd
-from datetime import datetime
+import os
+import datetime
 import math
+
+DATA_PATH = os.path.join("data", "spx_bull_put_trades.csv")
 
 class SPXBullPutTrader:
     def __init__(self):
         self.trade_log = []
+        os.makedirs("data", exist_ok=True)
+        self.cooldown_minutes = 1440  # 1 trade per day
+        self.last_trade_time = None
+
+    def already_traded_today(self):
+        if os.path.exists(DATA_PATH):
+            df = pd.read_csv(DATA_PATH, parse_dates=["timestamp"])
+            if not df.empty:
+                last_trade_time = df["timestamp"].max()
+                return (datetime.now() - last_trade_time).total_seconds() < self.cooldown_minutes * 60
+        return False
 
     def run(self):
-        # ⛔ Delay import until now to avoid event loop error
         from ib_insync import IB, Index, Option, ComboLeg, Bag, LimitOrder
+
+        # 🛑 Skip weekends
+        if datetime.today().weekday() >= 5:
+            print("📅 Weekend detected — skipping trade.")
+            return pd.DataFrame()
+
+        if self.already_traded_today():
+            print("⏳ Cooldown active — already traded today.")
+            return pd.DataFrame()
 
         ib = IB()
         try:
@@ -37,6 +57,7 @@ class SPXBullPutTrader:
 
         today = datetime.today().strftime("%Y%m%d")
         if today not in chain.expirations:
+            print("⚠️ No same-day expiration available.")
             ib.disconnect()
             return pd.DataFrame()
 
@@ -49,6 +70,12 @@ class SPXBullPutTrader:
         sell_strike = max([s for s in strikes if s <= target_sell_price], default=min(strikes))
         buy_strike = sell_strike - 5
         if buy_strike not in strikes:
+            ib.disconnect()
+            return pd.DataFrame()
+
+        # ❌ Prevent duplicate spread
+        if self.trade_exists(sell_strike, buy_strike):
+            print("🔁 Identical trade already exists — skipping.")
             ib.disconnect()
             return pd.DataFrame()
 
@@ -76,19 +103,20 @@ class SPXBullPutTrader:
             ]
         )
 
-        order = LimitOrder(
-            action='SELL',
-            totalQuantity=1,
-            lmtPrice=0.50
-        )
+        credit = round(sell_price - buy_price, 2)
+        order = LimitOrder(action='SELL', totalQuantity=1, lmtPrice=credit)
 
         try:
             trade = ib.placeOrder(spread, order)
-            ib.sleep(1)
+            ib.sleep(2)
             status = trade.orderStatus.status
         except Exception as e:
             ib.disconnect()
             return pd.DataFrame()
+
+        duration = 0
+        if self.last_trade_time:
+            duration = (datetime.datetime.now() - self.last_trade_time).total_seconds()
 
         self.trade_log.append({
             'timestamp': pd.Timestamp.now(),
@@ -96,19 +124,51 @@ class SPXBullPutTrader:
             'action': 'SELL PUT SPREAD',
             'sell_strike': sell_strike,
             'buy_strike': buy_strike,
-            'credit': 0.50,
+            'credit': credit,
             'status': status,
-            'pnl': 0.0
+            'pnl': 0.0,  # 💡 Extend later to calculate at expiry
+            'duration': duration
         })
+
+        self.last_trade_time = datetime.datetime.now()
 
         ib.disconnect()
         return pd.DataFrame(self.trade_log)
 
-# Streamlit-compatible wrapper
+    def trade_exists(self, sell_strike, buy_strike):
+        if os.path.exists(DATA_PATH):
+            df = pd.read_csv(DATA_PATH)
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            df_today = df[df["timestamp"].str.startswith(today_str)]
+            return not df_today[
+                (df_today["sell_strike"] == sell_strike) &
+                (df_today["buy_strike"] == buy_strike)
+            ].empty
+        return False
+
+    def save_trades(self):
+        if self.trade_log:
+            df = pd.DataFrame(self.trade_log)
+            if os.path.exists(DATA_PATH):
+                existing = pd.read_csv(DATA_PATH, parse_dates=["timestamp"])
+                df = pd.concat([existing, df], ignore_index=True)
+                df = df.drop_duplicates(subset=["timestamp", "sell_strike", "buy_strike"])
+            df.to_csv(DATA_PATH, index=False)
+
+    def get_trade_log(self):
+        if os.path.exists(DATA_PATH):
+            return pd.read_csv(DATA_PATH, parse_dates=["timestamp"])
+        return pd.DataFrame()
+
+
+# ✅ Streamlit-compatible wrapper
 class Strategy:
     def run(self):
-        bot = SPXBullPutTrader()
-        df = bot.run()
-        if not df.empty:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-        return df
+        trader = SPXBullPutTrader()
+        past_trades = trader.get_trade_log()
+        flag = "RUNNING_SPX_BULL_PUT_STRATEGY"
+        if os.getenv(flag, "0") == "1":
+            trader.run()
+            trader.save_trades()
+            past_trades = trader.get_trade_log()
+        return past_trades
