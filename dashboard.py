@@ -9,6 +9,7 @@ except RuntimeError:
     asyncio.set_event_loop(loop)
 
 import streamlit as st
+from PIL import Image
 import pandas as pd
 import os
 import importlib.util
@@ -19,7 +20,22 @@ STRATEGY_FOLDER = "strategies"
 
 # Set Streamlit config
 st.set_page_config(page_title="Alpha Quant Capital Dashboard", layout="wide")
-st.title("\U0001F4CA Alpha Quant Capital Dashboard")
+
+logo_path = os.path.join("assets", "logo.png")
+
+col1, col2 = st.columns([1, 5])
+with col1:
+    logo = Image.open(logo_path)
+    st.image(logo, width=100)
+with col2:
+    st.title("\U0001F4CA Alpha Quant Capital Dashboard")
+
+# if os.path.exists(logo_path):
+#     logo = Image.open(logo_path)
+#     st.image(logo, width=200)  # Adjust width as needed
+
+# st.title("\U0001F4CA Alpha Quant Capital Dashboard")
+
 st.sidebar.header("\U0001F9E0 Strategy Control Panel")
 
 # Utility: Load strategy classes dynamically from a folder
@@ -45,12 +61,12 @@ def load_strategies():
                 strategies[module_name] = module.Strategy()
     return strategies
 
-# Upload new strategy
-uploaded_file = st.sidebar.file_uploader("Upload a Strategy File (.py)", type="py")
-if uploaded_file:
-    with open(os.path.join(STRATEGY_FOLDER, uploaded_file.name), "wb") as f:
-        f.write(uploaded_file.getvalue())
-    st.sidebar.success("Strategy uploaded. Please reload the page to activate it.")
+# # Upload new strategy
+# uploaded_file = st.sidebar.file_uploader("Upload a Strategy File (.py)", type="py")
+# if uploaded_file:
+#     with open(os.path.join(STRATEGY_FOLDER, uploaded_file.name), "wb") as f:
+#         f.write(uploaded_file.getvalue())
+#     st.sidebar.success("Strategy uploaded. Please reload the page to activate it.")
 
 # Load strategies
 strategies = load_strategies()

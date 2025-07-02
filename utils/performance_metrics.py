@@ -29,7 +29,7 @@ def calculate_metrics(df):
         return {
             'sharpe': 0,
             'sortino': 0,
-            'win_rate': 0,
+            'win_rate': (pnl > 0).mean() * 100 if len(pnl) > 0 else 0,
             'wins': int((pnl > 0).sum()),
             'losses': int((pnl < 0).sum()),
             'closed_pl': pnl.sum(),
