@@ -163,9 +163,12 @@ if summary_data:
                     df['cumulative_pnl'] = df['pnl'].cumsum()
                     st.line_chart(df.set_index("timestamp")["cumulative_pnl"])
 
-                    st.write("### Drawdown Curve")
                     df['drawdown'] = df['cumulative_pnl'].cummax() - df['cumulative_pnl']
-                    st.area_chart(df.set_index("timestamp")["drawdown"])
+                    if df['drawdown'].max() > 0:
+                        st.write("### Drawdown Curve")
+                        st.area_chart(df.set_index("timestamp")["drawdown"])
+                    else:
+                        st.info("✅ No drawdown detected - all trades are profitable or flat")
                 else:
                     st.warning(f"No valid 'pnl' data available for {name}.")
 
